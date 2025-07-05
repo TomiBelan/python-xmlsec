@@ -388,7 +388,10 @@ class build_ext(build_ext_orig):
                     )
                 )
             xmlsec1_tar = self.libs_dir / 'xmlsec1.tar.gz'
-            urlretrieve(url, str(xmlsec1_tar))
+            headers = {'User-Agent': 'https://github.com/xmlsec/python-xmlsec'}
+            request = Request(url, headers=headers)
+            with urlopen(request) as response, open(str(xmlsec1_tar), 'wb') as out_file:
+                out_file.write(response.read())
 
         for file in (openssl_tar, zlib_tar, libiconv_tar, libxml2_tar, libxslt_tar, xmlsec1_tar):
             self.info('Unpacking {}'.format(file.name))
