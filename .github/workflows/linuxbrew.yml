@@ -25,6 +25,8 @@ jobs:
           pip3 install --upgrade setuptools wheel build
           export CFLAGS="-I$(brew --prefix)/include"
           export LDFLAGS="-L$(brew --prefix)/lib"
+          env
+          grep -r gcc-11 .
           python3 -m build
           rm -rf build/
       - name: Run tests
