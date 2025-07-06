@@ -26,7 +26,7 @@ jobs:
           export CFLAGS="-I$(brew --prefix)/include"
           export LDFLAGS="-L$(brew --prefix)/lib"
           echo ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
-          grep -r gcc-11 . ~ /usr
+          grep -r gcc-11 . ~ /usr | grep -Ev '.{600}'
           python3 -m build
           rm -rf build/
       - name: Run tests

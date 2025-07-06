@@ -5,6 +5,7 @@ import json
 import multiprocessing
 import os
 import re
+import ssl
 import subprocess
 import sys
 import tarfile
@@ -20,6 +21,7 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext as build_ext_orig
 
 
+"""
 import ssl
 import socket
 import urllib.request
@@ -84,7 +86,7 @@ def logging_wrap_socket(self, *args, **kwargs):
     return patch_ssl_socket(sock)
 
 ssl.SSLContext.wrap_socket = logging_wrap_socket
-
+"""
 
 
 
@@ -100,12 +102,18 @@ class HrefCollector(html.parser.HTMLParser):
                     self.hrefs.append(value)
 
 
-def make_request(url, github_token=None, json_response=False):
+def make_request(url, github_token=None, json_response=False, binary_response=False):
     headers = {'User-Agent': 'https://github.com/xmlsec/python-xmlsec'}
     if github_token:
         headers['authorization'] = "Bearer " + github_token
     request = Request(url, headers=headers)
-    with contextlib.closing(urlopen(request)) as r:
+    # The cloudflare server at "www.aleksey.com" gives 403 errors for
+    # GitHub Actions runners using Python<=3.9 with its default TLS settings.
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    with contextlib.closing(urlopen(request, context=context)) as r:
+        if binary_response:
+            return r.read()
         charset = r.headers.get_content_charset() or 'utf-8'
         content = r.read().decode(charset)
         if json_response:
@@ -456,10 +464,8 @@ class build_ext(build_ext_orig):
                     )
                 )
             xmlsec1_tar = self.libs_dir / 'xmlsec1.tar.gz'
-            headers = {'User-Agent': 'https://github.com/xmlsec/python-xmlsec'}
-            request = Request(url, headers=headers)
-            with urlopen(request) as response, open(str(xmlsec1_tar), 'wb') as out_file:
-                out_file.write(response.read())
+            with open(str(xmlsec1_tar), 'wb') as out_file:
+                out_file.write(make_request(url, binary_response=True))
 
         for file in (openssl_tar, zlib_tar, libiconv_tar, libxml2_tar, libxslt_tar, xmlsec1_tar):
             self.info('Unpacking {}'.format(file.name))
