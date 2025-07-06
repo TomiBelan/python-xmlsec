@@ -5,7 +5,6 @@ import json
 import multiprocessing
 import os
 import re
-import ssl
 import subprocess
 import sys
 import tarfile
@@ -19,75 +18,6 @@ from urllib.request import Request, urlcleanup, urlopen, urlretrieve
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext as build_ext_orig
-
-
-"""
-import ssl
-import socket
-import urllib.request
-import http.client
-
-# Save original SSLSocket methods
-original_ssl_context_wrap_socket = ssl.SSLContext.wrap_socket
-original_makefile = ssl.SSLSocket.makefile
-
-# Patch for file-like object returned by makefile()
-class LoggingFileWrapper(io.BufferedReader):
-    def __init__(self, raw):
-        super().__init__(raw)
-
-    def read(self, size=-1):
-        data = super().read(size)
-        if data:
-            print("SSL RECV via makefile().read()", repr(bytes(data)[:256]))
-        return data
-
-    def readline(self, size=-1):
-        data = super().readline(size)
-        if data:
-            print("SSL RECV via makefile().readline()", repr(bytes(data)[:256]))
-        return data
-
-    # def readinto(self, b):
-    #     n = super().readinto(b)
-    #     if n > 0:
-    #         print("SSL RECV via makefile().readinto()", repr(bytes(b[:n][:256])))
-    #     return n
-
-# Patch SSLSocket.makefile to return a logging wrapper
-def logging_makefile(self, *args, **kwargs):
-    file_obj = original_makefile(self, *args, **kwargs)
-    return LoggingFileWrapper(file_obj)
-
-ssl.SSLSocket.makefile = logging_makefile
-
-def patch_ssl_socket(sock):
-    original_send = sock.send
-    original_recv = sock.recv
-
-    def logging_send(data, *args, **kwargs):
-        print('SSL VERSION:', ssl.OPENSSL_VERSION)
-        print("SSL SEND", repr(bytes(data)))
-        return original_send(data, *args, **kwargs)
-
-    def logging_recv(bufsize, *args, **kwargs):
-        data = original_recv(bufsize, *args, **kwargs)
-        if data:
-            print("SSL RECV direct", repr(bytes(data)[:256]))
-        return data
-
-    sock.send = logging_send
-    sock.recv = logging_recv
-    return sock
-
-# Patch SSLContext.wrap_socket
-def logging_wrap_socket(self, *args, **kwargs):
-    sock = original_ssl_context_wrap_socket(self, *args, **kwargs)
-    return patch_ssl_socket(sock)
-
-ssl.SSLContext.wrap_socket = logging_wrap_socket
-"""
-
 
 
 class HrefCollector(html.parser.HTMLParser):
@@ -140,19 +70,18 @@ def latest_release_from_gnome_org_cache(url, lib_name):
     return '{}/{}'.format(url, latest_source)
 
 
-def latest_release_from_github_api(repo):
+def latest_release_json_from_github_api(repo):
     api_url = 'https://api.github.com/repos/{}/releases/latest'.format(repo)
 
     # if we are running in CI, pass along the GH_TOKEN, so we don't get rate limited
     token = os.environ.get("GH_TOKEN")
     if token:
         log.info("Using GitHub token to avoid rate limiting")
-    latest_release = make_request(api_url, token, json_response=True)
-    return latest_release['tarball_url']
+    return make_request(api_url, token, json_response=True)
 
 
 def latest_openssl_release():
-    return latest_release_from_github_api('openssl/openssl')
+    return latest_release_json_from_github_api('openssl/openssl')['tarball_url']
 
 
 def latest_zlib_release():
@@ -172,7 +101,9 @@ def latest_libxslt_release():
 
 
 def latest_xmlsec_release():
-    return latest_release_from_github_api('lsh123/xmlsec')
+    assets = latest_release_json_from_github_api('lsh123/xmlsec')['assets']
+    (tar_gz,) = [asset for asset in assets if asset['name'].endswith('.tar.gz')]
+    return tar_gz['browser_download_url']
 
 
 class CrossCompileInfo:
@@ -448,7 +379,7 @@ class build_ext(build_ext_orig):
                 url = latest_xmlsec_release()
                 self.info('{:10}: {}'.format('xmlsec1', 'PYXMLSEC_XMLSEC1_VERSION unset, downloading latest from {}'.format(url)))
             else:
-                url = 'https://api.github.com/repos/lsh123/xmlsec/tarball/{}'.format(self.xmlsec1_version)
+                url = 'https://github.com/lsh123/xmlsec/releases/download/{v}/xmlsec1-{v}.tar.gz'.format(v=self.xmlsec1_version)
                 self.info(
                     '{:10}: {}'.format(
                         'xmlsec1', 'PYXMLSEC_XMLSEC1_VERSION={}, downloading from {}'.format(self.xmlsec1_version, url)
@@ -582,10 +513,10 @@ class build_ext(build_ext_orig):
         self.info('Building xmlsec1')
         ldflags.append('-lpthread')
         env['LDFLAGS'] = ' '.join(ldflags)
-        xmlsec1_dir = next(self.build_libs_dir.glob('lsh123-xmlsec-*'))
+        xmlsec1_dir = next(self.build_libs_dir.glob('xmlsec1-*'))
         subprocess.check_call(
             [
-                './autogen.sh',
+                './configure',
                 prefix_arg,
                 '--disable-shared',
                 '--disable-gost',
