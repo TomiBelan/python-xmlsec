@@ -582,10 +582,10 @@ class build_ext(build_ext_orig):
         self.info('Building xmlsec1')
         ldflags.append('-lpthread')
         env['LDFLAGS'] = ' '.join(ldflags)
-        xmlsec1_dir = next(self.build_libs_dir.glob('xmlsec1-*'))
+        xmlsec1_dir = next(self.build_libs_dir.glob('lsh123-xmlsec-*'))
         subprocess.check_output(
             [
-                './configure',
+                './autogen.sh',
                 prefix_arg,
                 '--disable-shared',
                 '--disable-gost',

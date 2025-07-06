@@ -6,6 +6,8 @@ jobs:
     strategy:
       matrix:
         python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    env:
+      - CC=gcc
     steps:
       - uses: actions/checkout@v3
       - name: Install brew
@@ -23,7 +25,6 @@ jobs:
           python3 -m venv build_venv
           source build_venv/bin/activate
           pip3 install --upgrade setuptools wheel build
-          export CC=gcc
           export CFLAGS="-I$(brew --prefix)/include"
           export LDFLAGS="-L$(brew --prefix)/lib"
           echo ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
