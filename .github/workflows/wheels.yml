@@ -19,6 +19,10 @@ permissions: {}
 
 jobs:
   sdist:
+    # Avoid Ubuntu 24.04 in sdist workflows, because it contains libxmlsec1-dev
+    # v1.2.39, which has a bug that causes tests/test_pkcs11.py to fail.
+    # (It thinks the softhsm engine has a public key instead of a private key.)
+    # libxmlsec1 <=1.2.33 or >=1.2.42 works. TODO: Try 26.04 when available.
     runs-on: ubuntu-22.04
 
     permissions:
@@ -83,7 +87,7 @@ jobs:
               && cibuildwheel --print-build-identifiers --platform macos \
               | jq -nRc '{"only": inputs, "os": "macos-latest"}' \
               && cibuildwheel --print-build-identifiers --platform windows \
-              | jq -nRc '{"only": inputs, "os": "windows-latest"}'
+              | jq -nRc '{"only": inputs, "os": "windows-2019"}'
             } | jq -sc
           )
           echo "include=$MATRIX"
