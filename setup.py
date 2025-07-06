@@ -514,9 +514,9 @@ class build_ext(build_ext_orig):
         subprocess.check_call(['make', '-j{}'.format(multiprocessing.cpu_count() + 1)], cwd=str(zlib_dir), env=env)
         subprocess.check_call(['make', '-j{}'.format(multiprocessing.cpu_count() + 1), 'install'], cwd=str(zlib_dir), env=env)
 
-        host_arg = ""
+        host_arg = []
         if cross_compiling:
-            host_arg = '--host={}'.format(cross_compiling.arch)
+            host_arg = ['--host={}'.format(cross_compiling.arch)]
 
         self.info('Building libiconv')
         libiconv_dir = next(self.build_libs_dir.glob('libiconv-*'))
@@ -526,7 +526,7 @@ class build_ext(build_ext_orig):
                 prefix_arg,
                 '--disable-dependency-tracking',
                 '--disable-shared',
-                host_arg,
+                *host_arg,
             ],
             cwd=str(libiconv_dir),
             env=env,
@@ -548,7 +548,7 @@ class build_ext(build_ext_orig):
                 '--without-python',
                 '--with-iconv={}'.format(self.prefix_dir),
                 '--with-zlib={}'.format(self.prefix_dir),
-                host_arg,
+                *host_arg,
             ],
             cwd=str(libxml2_dir),
             env=env,
@@ -569,7 +569,7 @@ class build_ext(build_ext_orig):
                 '--without-python',
                 '--without-crypto',
                 '--with-libxml-prefix={}'.format(self.prefix_dir),
-                host_arg,
+                *host_arg,
             ],
             cwd=str(libxslt_dir),
             env=env,
@@ -599,7 +599,7 @@ class build_ext(build_ext_orig):
                 '--with-openssl={}'.format(self.prefix_dir),
                 '--with-libxml={}'.format(self.prefix_dir),
                 '--with-libxslt={}'.format(self.prefix_dir),
-                host_arg,
+                *host_arg,
             ],
             cwd=str(xmlsec1_dir),
             env=env,
