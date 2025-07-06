@@ -102,18 +102,12 @@ class HrefCollector(html.parser.HTMLParser):
                     self.hrefs.append(value)
 
 
-def make_request(url, github_token=None, json_response=False, binary_response=False):
+def make_request(url, github_token=None, json_response=False):
     headers = {'User-Agent': 'https://github.com/xmlsec/python-xmlsec'}
     if github_token:
         headers['authorization'] = "Bearer " + github_token
     request = Request(url, headers=headers)
-    # The cloudflare server at "www.aleksey.com" gives 403 errors for
-    # GitHub Actions runners using Python<=3.9 with its default TLS settings.
-    context = ssl.create_default_context()
-    context.minimum_version = ssl.TLSVersion.TLSv1_3
-    with contextlib.closing(urlopen(request, context=context)) as r:
-        if binary_response:
-            return r.read()
+    with contextlib.closing(urlopen(request)) as r:
         charset = r.headers.get_content_charset() or 'utf-8'
         content = r.read().decode(charset)
         if json_response:
@@ -147,17 +141,14 @@ def latest_release_from_gnome_org_cache(url, lib_name):
 
 
 def latest_release_from_github_api(repo):
-    api_url = 'https://api.github.com/repos/{}/releases'.format(repo)
+    api_url = 'https://api.github.com/repos/{}/releases/latest'.format(repo)
 
     # if we are running in CI, pass along the GH_TOKEN, so we don't get rate limited
     token = os.environ.get("GH_TOKEN")
     if token:
         log.info("Using GitHub token to avoid rate limiting")
-    api_releases = make_request(api_url, token, json_response=True)
-    releases = [r['tarball_url'] for r in api_releases if r['prerelease'] is False and r['draft'] is False]
-    if not releases:
-        raise DistutilsError('No release found for {}'.format(repo))
-    return releases[0]
+    latest_release = make_request(api_url, token, json_response=True)
+    return latest_release['tarball_url']
 
 
 def latest_openssl_release():
@@ -181,7 +172,7 @@ def latest_libxslt_release():
 
 
 def latest_xmlsec_release():
-    return latest_release_from_html('https://www.aleksey.com/xmlsec/download/', re.compile('xmlsec1-(?P<version>.*).tar.gz'))
+    return latest_release_from_github_api('lsh123/xmlsec')
 
 
 class CrossCompileInfo:
@@ -457,15 +448,14 @@ class build_ext(build_ext_orig):
                 url = latest_xmlsec_release()
                 self.info('{:10}: {}'.format('xmlsec1', 'PYXMLSEC_XMLSEC1_VERSION unset, downloading latest from {}'.format(url)))
             else:
-                url = 'https://www.aleksey.com/xmlsec/download/xmlsec1-{}.tar.gz'.format(self.xmlsec1_version)
+                url = 'https://api.github.com/repos/lsh123/xmlsec/tarball/{}'.format(self.xmlsec1_version)
                 self.info(
                     '{:10}: {}'.format(
                         'xmlsec1', 'PYXMLSEC_XMLSEC1_VERSION={}, downloading from {}'.format(self.xmlsec1_version, url)
                     )
                 )
             xmlsec1_tar = self.libs_dir / 'xmlsec1.tar.gz'
-            with open(str(xmlsec1_tar), 'wb') as out_file:
-                out_file.write(make_request(url, binary_response=True))
+            urlretrieve(url, str(xmlsec1_tar))
 
         for file in (openssl_tar, zlib_tar, libiconv_tar, libxml2_tar, libxslt_tar, xmlsec1_tar):
             self.info('Unpacking {}'.format(file.name))
